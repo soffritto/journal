@@ -6,7 +6,9 @@
             mysql_enable_utf8 => 1,
         }
     ],
-    title => 'Soffritto::Journal',
+    title => 'my journal',
+    description => 'my great history',
+    author => 'author unknown',
     auth => {
         username => 'username',
         password => 'password',

@@ -184,6 +184,7 @@ __DATA__
   <h2 class="subject entry-title">
     <a rel="bookmark" href="/entry/[% entry.param('id') %]">[% entry.param('subject') %]</a>
   </h2>
+  <div class="author">[% c().config().author || 'author unknown' %]</div>
   <div class="updated">[% entry.updated.strftime('%FT%T%z') %]</div>
   <div class="entry-content [% entry.param('format') %]">
     [% entry.formatted_body | raw %]
@@ -230,11 +231,12 @@ __DATA__
 <channel>
 <title>[% c().config().title || 'my journal' %]</title>
 <link>[% c().request.base.as_string %]</link>
-<description></description>
+<description>[% c().config().description || 'my great history' %]</description>
 <atom:link href="[% c().request.uri %]" rel="self" type="application/rss+xml" />
 [% FOR item IN list %]
 <item>
 <title>[% item.param('subject') %]</title>
+<author>[% c().config().author || 'author unknown' %]</author>
 <link>[% item.permalink(c()) %]</link>
 <guid isPermaLink="true">[% item.permalink(c()) %]</guid>
 <pubDate>[% item.updated.strftime('%a, %e %b %Y %H:%M:%S %z') %]</pubDate>
@@ -299,7 +301,7 @@ dl, ul, dd {
     padding: 15px 25px;
     border: 2px solid #FCC800;
 }
-.updated, .pager, .autopagerize_page_separator, .autopagerize_page_info {
+.updated, .author, .pager, .autopagerize_page_separator, .autopagerize_page_info {
     display: none;
 }
 .entry h2 a {
