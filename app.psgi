@@ -184,7 +184,7 @@ __DATA__
   <h2 class="subject entry-title">
     <a rel="bookmark" href="/entry/[% entry.param('id') %]">[% entry.param('subject') %]</a>
   </h2>
-  <div class="author">[% c().config().author || 'author unknown' %]</div>
+  <div class="vcard author"><span class="fn">[% c().config().author || 'author unknown' %]</span></div>
   <div class="updated">[% entry.updated.strftime('%FT%T%z') %]</div>
   <div class="entry-content [% entry.param('format') %]">
     [% entry.formatted_body | raw %]
