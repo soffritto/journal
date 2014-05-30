@@ -231,6 +231,7 @@ __DATA__
 <title>[% c().config().title || 'my journal' %]</title>
 <link>[% c().request.base.as_string %]</link>
 <description></description>
+<atom:link href="[% c().request.uri %]" rel="self" type="application/rss+xml" />
 [% FOR item IN list %]
 <item>
 <title>[% item.param('subject') %]</title>
