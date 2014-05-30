@@ -15,7 +15,13 @@ use Amon2::Lite;
     sub param { $_[0]->{$_[1]} }
     sub updated { 
         my $self = shift;
-        localtime($self->{posted_at})->strftime('%FT%T%z');
+        localtime($self->{posted_at});
+    }
+    sub short_body {
+        my $self = shift;
+        my $body = substr($self->{body}, 0, 100);
+        $body .= '...' if length($self->{body}) > 100;
+        return $body;
     }
     sub formatted_body {
         my $self = shift;
@@ -132,7 +138,9 @@ get '/feed' => sub {
         'select * from entry order by id desc limit ?',
         {Slice => {}}, 10
     );
-    $c->render('feed.tt', {list => [map {Entry->new($_)} @$list]});
+    my $res = $c->render('feed.tt', {list => [map {Entry->new($_)} @$list]});
+    $res->content_type('application/rss+xml; charset=utf-8');
+    return $res;
 };
 
 __PACKAGE__->load_config($ENV{PLACK_ENV});
@@ -176,7 +184,7 @@ __DATA__
   <h2 class="subject entry-title">
     <a rel="bookmark" href="/entry/[% entry.param('id') %]">[% entry.param('subject') %]</a>
   </h2>
-  <div class="updated">[% entry.updated %]</div>
+  <div class="updated">[% entry.updated.strftime('%FT%T%z') %]</div>
   <div class="entry-content [% entry.param('format') %]">
     [% entry.formatted_body | raw %]
   </div>
@@ -227,8 +235,9 @@ __DATA__
 <item>
 <title>[% item.param('subject') %]</title>
 <link>[% item.permalink(c()) %]</link>
-<guid isPermalink="true">[% item.permalink(c()) %]</guid>
-<pubDate>[% item.updated %]</pubDate>
+<guid isPermaLink="true">[% item.permalink(c()) %]</guid>
+<pubDate>[% item.updated.strftime('%a, %e %b %Y %H:%M:%S %z') %]</pubDate>
+<description>[% item.short_body %]</description>
 <content:encoded><![CDATA[
 [% item.formatted_body |raw %]
 ]]></content:encoded>
