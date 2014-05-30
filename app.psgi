@@ -236,7 +236,7 @@ __DATA__
 [% FOR item IN list %]
 <item>
 <title>[% item.param('subject') %]</title>
-<author>[% c().config().author || 'author unknown' %]</author>
+<dc:creator>[% c().config().author || 'author unknown' %]</dc:creator>
 <link>[% item.permalink(c()) %]</link>
 <guid isPermaLink="true">[% item.permalink(c()) %]</guid>
 <pubDate>[% item.updated.strftime('%a, %e %b %Y %H:%M:%S %z') %]</pubDate>
