@@ -227,6 +227,7 @@ __DATA__
   xmlns:content="http://purl.org/rss/1.0/modules/content/"
   xmlns:atom="http://www.w3.org/2005/Atom"
   xmlns:dcterms="http://purl.org/dc/terms/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
 >
 <channel>
 <title>[% c().config().title || 'my journal' %]</title>
