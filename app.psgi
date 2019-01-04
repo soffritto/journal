@@ -69,7 +69,7 @@ sub entry_file {
 sub render_page {
     my ($c, $page, $template) = @_;
     $template ||= 'page.tt';
-    my @files = sort {$b cmp $a} $c->config->{datadir}->children;
+    my @files = sort {$b cmp $a} grep {-f $_} $c->config->{datadir}->children;
     my @list = grep {defined} @files[10 * ($page - 1) .. 10 * $page - 1];
     scalar @list or return $c->res_404;
     my $has_next = defined($files[10 * $page]);
