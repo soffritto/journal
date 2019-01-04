@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use Plack::Builder;
 use Amon2::Lite;
+use Path::Class;
+use File::Temp;
+use Email::MIME;
+use Email::Date::Format;
 
 {
     package Entry;
@@ -11,7 +15,21 @@ use Amon2::Lite;
     use Time::Piece;
     use URI::WithBase;
 
-    sub new { bless $_[1], $_[0] }
+    sub new { 
+        my ($class, $file) = @_;
+        $file or return;
+        my $content = $file->slurp;
+        my $mime = Email::MIME->new($content);
+        my ($time, $id) = $mime->header('Message-ID') =~ m/^<(\d+)\.(\d+)\@.+>$/;
+        bless {
+            id => $id,
+            subject => $mime->header('Subject'),
+            file => $file,
+            mime => $mime,
+            posted_at => $time,
+            body => $mime->body,
+        }, $class;
+    }
     sub param { $_[0]->{$_[1]} }
     sub updated { 
         my $self = shift;
@@ -19,15 +37,15 @@ use Amon2::Lite;
     }
     sub short_body {
         my $self = shift;
-        my $body = substr($self->{body}, 0, 100);
-        $body .= '...' if length($self->{body}) > 100;
+        my $body = substr($self->{mime}->body, 0, 100);
+        $body .= '...' if length($self->{mime}->body) > 100;
         return $body;
     }
     sub formatted_body {
         my $self = shift;
-        if ($self->{format} eq 'hatena') {
+        if ($self->{mime}{ct}{subtype} eq 'hatena') {
             Text::Hatena->parse($self->{body});
-        } elsif ($self->{format} eq 'markdown') {
+        } elsif ($self->{mime}{ct}{subtype} eq 'markdown') {
             Text::Markdown::markdown($self->{body});
         } else {
             $self->{body};
@@ -42,21 +60,23 @@ use Amon2::Lite;
     }
 }
 
+sub entry_file {
+    my $id = shift;
+    my ($item) = grep {$_->basename =~ m/^\d+\.$id\..+$/} __PACKAGE__->config->{datadir}->children;
+    return $item;
+}
+
 sub render_page {
-    my ($c, $page) = @_;
-    my $list = $c->dbh->selectall_arrayref(
-        'select * from entry order by id desc limit ? offset ?',
-        {Slice => {}}, 10, 10 * ($page - 1)
-    );
-    @$list or return $c->res_404;
-    my $has_next = $c->dbh->selectrow_array(
-        'select id from entry order by id desc limit ? offset ?',
-        undef, 1, 10 * $page
-    );
+    my ($c, $page, $template) = @_;
+    $template ||= 'page.tt';
+    my @files = sort {$b cmp $a} $c->config->{datadir}->children;
+    my @list = grep {defined} @files[10 * ($page - 1) .. 10 * $page - 1];
+    scalar @list or return $c->res_404;
+    my $has_next = defined($files[10 * $page]);
     $c->render(
-        'page.tt', 
+        $template, 
         { 
-            list => [map {Entry->new($_)} @$list],
+            list => [map {Entry->new($_)} @list],
             pager => $has_next ? $page + 1 : undef
         }
     );
@@ -77,15 +97,8 @@ get '/page/{page:\d+}' => sub {
 
 get '/entry/{id:\d+}' => sub {
     my ($c, $args) = @_;
-    my $item = $c->dbh->selectrow_hashref(
-        'select * from entry where id = ?',
-        undef, $args->{id}
-    )
-        or return $c->res_404;
-    my $pager = $c->dbh->selectrow_array(
-        'select id from entry where id < ? order by id desc limit ?',
-        undef, $args->{id}, 1
-    );
+    my $item = entry_file($args->{id});
+    my $pager = entry_file($args->{id} - 1) ? 1 : 0;
     $c->render(
         'entry.tt', 
         { 
@@ -95,66 +108,61 @@ get '/entry/{id:\d+}' => sub {
     );
 };
 
-get qr!^/writer(?:/(\d+)|/?)$! => sub {
-    my ($c, $args) = @_;
-    my $item = {};
-    if (my $id = $args->{splat}[0]) {
-        $item = $c->dbh->selectrow_hashref(
-            'select * from entry where id = ?',
-            undef, $id
-        )
-    }
-    $c->render('writer.tt', {item => $item});
-};
-
-post qr!^/writer(?:/(\d+)|/?)$! => sub {
-    my ($c, $args) = @_;
-    my $id = $args->{splat}[0];
-    my $params = $c->req->parameters->as_hashref;
-    my $dbh = $c->dbh;
-    if (delete $params->{delete}) {
-        $dbh->do(
-            'delete from entry where id = ?', undef, $id
-        ) if $id;
-        $c->redirect($c->uri_for('/'));
-    } elsif ($id) {
-        $dbh->do(
-            'update entry set subject = ?, body = ?, posted_at = ? where id = ?',
-            undef, $params->{subject}, $params->{body}, time, $id
-        );
-    } else {
-        $dbh->do(
-            'insert into entry set subject = ?, body = ?, posted_at = ?',
-            undef, $params->{subject}, $params->{body}, time
-        );
-        $id = $dbh->{mysql_insertid};
-    }
-    $c->redirect($c->uri_for("/entry/$id"));
-};
-
 get '/feed' => sub {
     my ($c) = @_;
-    my $list = $c->dbh->selectall_arrayref(
-        'select * from entry order by id desc limit ?',
-        {Slice => {}}, 10
-    );
-    my $res = $c->render('feed.tt', {list => [map {Entry->new($_)} @$list]});
+    my $res = render_page($c, 1, 'feed.tt');
     $res->content_type('application/rss+xml; charset=utf-8');
     return $res;
 };
 
 __PACKAGE__->load_config($ENV{PLACK_ENV});
-__PACKAGE__->load_plugin('DBI');
 
-builder {
-    enable 'ReverseProxy';
-    enable_if {
-        join('', @{$_[0]}{qw(SCRIPT_NAME PATH_INFO)}) =~ m{^/writer}
-    } 'Auth::Basic', authenticator => sub {
-        my $config = __PACKAGE__->config;
-        return $_[0] eq $config->{auth}{username} && $_[1] eq $config->{auth}{password};
+if (caller) {
+    return builder {
+        enable 'ReverseProxy';
+        enable_if {
+            join('', @{$_[0]}{qw(SCRIPT_NAME PATH_INFO)}) =~ m{^/writer}
+        } 'Auth::Basic', authenticator => sub {
+            my $config = __PACKAGE__->config;
+            return $_[0] eq $config->{auth}{username} && $_[1] eq $config->{auth}{password};
+        };
+        __PACKAGE__->to_app(handle_static => 1);
     };
-    __PACKAGE__->to_app(handle_static => 1);
+} else {
+    my $fh = File::Temp->new;
+    my $filename = $fh->filename;
+    close $fh;
+    system($ENV{EDITOR}, $filename);
+    my $content = Path::Class::File->new($filename)->slurp(iomode => '<:encoding(utf8)');
+    my $parsed = Email::MIME->new($content);
+    my $subject = $parsed->header('Subject');
+    my $body;
+    if ($subject) {
+        $body = $parsed->body;
+    } else {
+        $subject = '';
+        $body = $content;
+    }
+    my $config = __PACKAGE__->config;
+    my ($latest) = sort {$b cmp $a} $config->{datadir}->children;
+    my ($latest_id) = $latest ? $latest->basename =~ m/^\d+\.(\d+)\..+/ : 0;
+    my $id = $latest_id + 1;
+    my $time = time;
+    my $mime = Email::MIME->create(
+        attributes => {
+            content_type => 'text/markdown',
+            encoding => '8bit',
+            charset => 'utf8',
+        },
+        header_str => [
+            From => $config->{author},
+            Subject => $subject,
+            Date => Email::Date::Format::email_date($time),
+            'Message-ID' => sprintf('<%d.%d@%s>', $time, $id, $config->{hostname}),
+        ],
+        body_str => $body
+    );
+    $config->{datadir}->file(sprintf('%d.%d.%s', $time, $id, $config->{hostname}))->spew($mime->as_string);
 }
 
 __DATA__
@@ -205,17 +213,6 @@ __DATA__
 [% WRAPPER 'wrapper.tt' %]
 [% INCLUDE 'item.tt' WITH entry = item %]
 [% IF pager %]<div class="pager"><a href="/entry/[% pager %]">next</a></div>[% END %]
-[% END %]
-
-@@ writer.tt
-
-[% WRAPPER 'wrapper.tt' %]
-<form method="POST">
-<input type="text" id="form_subject" name="subject" value="[% item.subject %]">
-<textarea id="form_body" name="body">[% item.body %]</textarea>
-<input type="submit" value="post this entry">
-<input type="submit" name="delete" value="delete">
-</form>
 [% END %]
 
 @@ feed.tt

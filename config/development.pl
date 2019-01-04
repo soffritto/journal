@@ -1,16 +1,8 @@
+use Path::Class;
 {
-    DBI => [
-        'dbi:mysql:journal', 'root', '',
-        {
-            mysql_auto_reconnect => 1,
-            mysql_enable_utf8 => 1,
-        }
-    ],
     title => 'my journal',
     description => 'my great history',
-    author => 'author unknown',
-    auth => {
-        username => 'username',
-        password => 'password',
-    },
+    author => 'author unknown <info@example.com>',
+    hostname => 'journal.example.com',
+    datadir => Path::Class::File->new(__FILE__)->dir->parent->subdir('data')->absolute,
 }

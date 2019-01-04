@@ -1,3 +1,4 @@
 config/deployment.pl
 cpanfile.snapshot
 local
+/data
