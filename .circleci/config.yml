@@ -5,15 +5,7 @@ jobs:
       - image: perl:latest
     steps:
       - checkout
-      - restore-cache:
-          keys:
-            - cpanm-{{ checksum ".circleci/cpanm.sh" }}
-      - run: sh .circleci/cpanm.sh
-      - save-cache:
-          key: cpanm-{{ checksum ".circleci/cpanm.sh" }}
-          paths:
-            - /usr/local/lib/perl5
-            - /usr/local/bin
+      - run: cpanm Carton
       - restore-cache:
           keys:
             - carton-{{ checksum "cpanfile.snapshot" }}
@@ -30,9 +22,7 @@ jobs:
     docker:
       - image: perl:latest
     steps:
-      - restore-cache:
-          keys:
-            - cpanm-{{ checksum ".circleci/cpanm.sh" }}
+      - run: cpanm Carton
       - attach_workspace:
           at: .
       - run: carton exec -- prove -lr t 
