@@ -120,12 +120,6 @@ __PACKAGE__->load_config($ENV{PLACK_ENV});
 if (caller) {
     return builder {
         enable 'ReverseProxy';
-        enable_if {
-            join('', @{$_[0]}{qw(SCRIPT_NAME PATH_INFO)}) =~ m{^/writer}
-        } 'Auth::Basic', authenticator => sub {
-            my $config = __PACKAGE__->config;
-            return $_[0] eq $config->{auth}{username} && $_[1] eq $config->{auth}{password};
-        };
         __PACKAGE__->to_app(handle_static => 1);
     };
 } else {
