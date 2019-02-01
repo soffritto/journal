@@ -16,7 +16,8 @@ jobs:
             - local
       - persist_to_workspace:
           root: .
-          paths: *
+          paths: 
+            - *
   test:
     docker:
       - image: perl:latest
