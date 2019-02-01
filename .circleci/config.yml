@@ -16,8 +16,6 @@ jobs:
             - local
       - persist_to_workspace:
           root: .
-          paths:
-            - public
   test:
     docker:
       - image: perl:latest
@@ -26,3 +24,11 @@ jobs:
       - attach_workspace:
           at: .
       - run: carton exec -- prove -lr t 
+workflows:
+    version: 2
+    build-deploy:
+        jobs:
+            - build
+            - test:
+                requires:
+                    - build
