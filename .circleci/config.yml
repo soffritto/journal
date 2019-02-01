@@ -5,7 +5,15 @@ jobs:
       - image: perl:latest
     steps:
       - checkout
-      - run: cpanm Carton
+      - restore-cache:
+          keys:
+            - cpanm-carton-v1.0.34
+      - run: cpanm MIYAGAWA/Carton-v1.0.34.tar.gz
+      - save-cache:
+          key: cpanm-carton-v1.0.34
+          paths:
+            - /usr/local/lib/perl5
+            - /usr/local/bin
       - restore-cache:
           keys:
             - carton-{{ checksum "cpanfile.snapshot" }}
@@ -22,7 +30,9 @@ jobs:
     docker:
       - image: perl:latest
     steps:
-      - run: cpanm Carton
+      - restore-cache:
+          keys:
+            - cpanm-carton-v1.0.34
       - attach_workspace:
           at: .
       - run: carton exec -- prove -lr t 
